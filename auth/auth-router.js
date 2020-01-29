@@ -1,8 +1,15 @@
 Users = require("../users/users-model");
+const jwt = require("jsonwebtoken");
 const router = require("express").Router();
+const bcrypt = require("bcryptjs");
+
+const { jwtSecret } = require("../config/secrets.js");
 
 router.post("/register", (req, res) => {
-  Users.add(req.body)
+  let user = req.body;
+  const hash = bcrypt.hashSync(user.password, 10);
+  user.password = hash;
+  Users.add(user)
     .then(user => {
       res.status(201).json(user);
     })
@@ -24,7 +31,14 @@ router.post("/login", (req, res) => {
           errorMessage: "username does not exist"
         });
       } else {
-        return res.status(200).json(user);
+        if (user && bcrypt.compareSync(password, user.password)) {
+          const token = signToken(user);
+
+          res.status(200).json({
+            message: `Welcome ${user.username}!`,
+            token
+          });
+        }
       }
     })
     .catch(error => {
@@ -32,5 +46,17 @@ router.post("/login", (req, res) => {
       return res.status(500).json({ errorMessage: "error logging in" });
     });
 });
+
+function signToken(user) {
+  const payload = {
+    department: user.department
+  };
+
+  const options = {
+    expiresIn: "1d"
+  };
+
+  return jwt.sign(payload, jwtSecret, options);
+}
 
 module.exports = router;
